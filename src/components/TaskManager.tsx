@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,131 +15,130 @@ import {
 import { Plus, Trash2, CheckCircle2, Clock } from "lucide-react";
 import { Task } from "../types";
 import { motion, AnimatePresence } from "motion/react";
-import { db, collection, addDoc, deleteDoc, doc, OperationType, handleFirestoreError } from "../lib/firebase";
 
 interface TaskManagerProps {
   tasks: Task[];
-  uid: string;
+  onUpdate: (tasks: Task[]) => void;
   onToggle: (id: string) => void;
 }
 
-export default function TaskManager({ tasks, uid, onToggle }: TaskManagerProps) {
+export default function TaskManager({ tasks, onUpdate, onToggle }: TaskManagerProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newTask, setNewTask] = useState({ title: "", subject: "", deadline: "" });
 
-  const addTask = async () => {
+  const addTask = () => {
     if (!newTask.title) return;
-    try {
-      const taskData = {
-        uid: uid,
-        title: newTask.title,
-        subject: newTask.subject || "General",
-        deadline: newTask.deadline,
-        completed: false,
-        createdAt: new Date().toISOString()
-      };
-      // We'll let Firestore generate the ID
-      await addDoc(collection(db, "tasks"), taskData);
-      setNewTask({ title: "", subject: "", deadline: "" });
-      setIsAddOpen(false);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, "tasks");
-    }
+    const task: Task = {
+      id: Math.random().toString(36).substr(2, 9),
+      title: newTask.title,
+      subject: newTask.subject || "সাধারণ",
+      deadline: newTask.deadline,
+      completed: false,
+    };
+    onUpdate([task, ...tasks]);
+    setNewTask({ title: "", subject: "", deadline: "" });
+    setIsAddOpen(false);
   };
 
-  const deleteTask = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, "tasks", id));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `tasks/${id}`);
-    }
+  const deleteTask = (id: string) => {
+    onUpdate(tasks.filter(t => t.id !== id));
   };
 
   const pendingTasks = tasks.filter(t => !t.completed);
   const completedTasks = tasks.filter(t => t.completed);
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-bold font-bangla">Kaj er List</h2>
+    <div className="space-y-8 pb-10">
+      <div className="flex justify-between items-center px-2">
+        <h2 className="text-2xl font-black font-bangla tracking-tight">কাজের লিস্ট</h2>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Button className="rounded-full gap-2 font-bangla">
-              <Plus className="h-4 w-4" /> Notun Kaj Add Koro
+          <DialogTrigger render={
+            <Button className="rounded-2xl gap-2 font-bangla soft-shadow h-12 px-6">
+              <Plus className="h-5 w-5" /> নতুন কাজ
             </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          } />
+          <DialogContent className="sm:max-w-[425px] rounded-[2rem]">
             <DialogHeader>
-              <DialogTitle className="font-bangla">Notun Kaj Add Koro</DialogTitle>
+              <DialogTitle className="font-bangla text-2xl font-black">নতুন কাজ অ্যাড করো</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
+            <div className="grid gap-6 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="title" className="font-bangla">Kaj er Naam</Label>
+                <Label htmlFor="title" className="font-bangla font-bold">কাজের নাম</Label>
                 <Input 
                   id="title" 
                   value={newTask.title} 
                   onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                  placeholder="e.g., Chapter 1 pora"
+                  placeholder="যেমন: চ্যাপ্টার ১ পড়া"
+                  className="rounded-xl h-12"
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="subject" className="font-bangla">Subject</Label>
+                <Label htmlFor="subject" className="font-bangla font-bold">সাবজেক্ট</Label>
                 <Input 
                   id="subject" 
                   value={newTask.subject} 
                   onChange={(e) => setNewTask({ ...newTask, subject: e.target.value })}
-                  placeholder="e.g., CSE101"
+                  placeholder="যেমন: CSE101"
+                  className="rounded-xl h-12"
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="deadline" className="font-bangla">Deadline</Label>
+                <Label htmlFor="deadline" className="font-bangla font-bold">ডেডলাইন</Label>
                 <Input 
                   id="deadline" 
                   type="date"
                   value={newTask.deadline} 
                   onChange={(e) => setNewTask({ ...newTask, deadline: e.target.value })}
+                  className="rounded-xl h-12"
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button onClick={addTask} className="w-full font-bangla">Add Koro</Button>
+              <Button onClick={addTask} className="w-full h-12 rounded-xl font-bangla font-bold text-lg">অ্যাড করো</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div>
-          <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2 font-bangla">
-            <Clock className="h-4 w-4" /> Baki Ase ({pendingTasks.length})
+        <motion.div 
+          initial={{ opacity: 0, x: -30 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+          className="space-y-4"
+        >
+          <h3 className="text-sm font-black text-muted-foreground px-2 flex items-center gap-2 uppercase tracking-widest">
+            <Clock className="h-4 w-4" /> বাকি আছে ({pendingTasks.length})
           </h3>
-          <div className="space-y-2">
+          <div className="space-y-3">
             <AnimatePresence mode="popLayout">
-              {pendingTasks.map(task => (
+              {pendingTasks.map((task, index) => (
                 <motion.div 
                   key={task.id}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
+                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, x: -20 }}
+                  transition={{ delay: index * 0.05 }}
                   layout
-                  className="flex items-center space-x-3 p-4 bg-card border rounded-2xl shadow-sm group"
+                  className="flex items-center gap-4 p-5 bg-white dark:bg-card border-2 border-transparent hover:border-primary/20 rounded-[1.5rem] soft-shadow group transition-all"
                 >
                   <Checkbox 
                     id={`task-${task.id}`} 
                     checked={task.completed}
                     onCheckedChange={() => onToggle(task.id)}
+                    className="h-6 w-6 rounded-lg border-2"
                   />
                   <div className="flex-1 min-w-0">
                     <label 
                       htmlFor={`task-${task.id}`}
-                      className="text-sm font-semibold block truncate"
+                      className="text-base font-bold block truncate cursor-pointer text-foreground"
                     >
                       {task.title}
                     </label>
                     <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">{task.subject}</Badge>
+                      <Badge variant="secondary" className="text-[10px] font-bold px-2 py-0.5 rounded-lg">{task.subject}</Badge>
                       {task.deadline && (
-                        <span className="text-[10px] text-muted-foreground">{task.deadline}</span>
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">{task.deadline}</span>
                       )}
                     </div>
                   </div>
@@ -147,55 +146,74 @@ export default function TaskManager({ tasks, uid, onToggle }: TaskManagerProps) 
                     variant="ghost" 
                     size="icon" 
                     onClick={() => deleteTask(task.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive rounded-xl"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-5 w-5" />
                   </Button>
                 </motion.div>
               ))}
             </AnimatePresence>
             {pendingTasks.length === 0 && (
-              <p className="text-center py-8 text-muted-foreground text-sm font-bangla">Kono kaj baki nai bhai! 🥳</p>
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="text-center py-12 bg-muted/5 rounded-[2rem] border-2 border-dashed"
+              >
+                <p className="text-muted-foreground font-bangla text-lg">কোনো কাজ বাকি নাই ভাই! 🥳</p>
+              </motion.div>
             )}
           </div>
-        </div>
+        </motion.div>
 
         {completedTasks.length > 0 && (
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2 font-bangla">
-              <CheckCircle2 className="h-4 w-4" /> Shesh Kora Hoise ({completedTasks.length})
+          <motion.div 
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4 }}
+            className="space-y-4"
+          >
+            <h3 className="text-sm font-black text-muted-foreground px-2 flex items-center gap-2 uppercase tracking-widest">
+              <CheckCircle2 className="h-4 w-4" /> শেষ করা হইছে ({completedTasks.length})
             </h3>
-            <div className="space-y-2 opacity-60">
-              {completedTasks.map(task => (
-                <div 
-                  key={task.id}
-                  className="flex items-center space-x-3 p-3 bg-muted/50 border rounded-xl"
-                >
-                  <Checkbox 
-                    id={`task-${task.id}`} 
-                    checked={task.completed}
-                    onCheckedChange={() => onToggle(task.id)}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <label 
-                      htmlFor={`task-${task.id}`}
-                      className="text-sm font-medium line-through truncate block"
-                    >
-                      {task.title}
-                    </label>
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => deleteTask(task.id)}
-                    className="text-muted-foreground"
+            <div className="space-y-3 opacity-60">
+              <AnimatePresence mode="popLayout">
+                {completedTasks.map((task, index) => (
+                  <motion.div 
+                    key={task.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    transition={{ delay: index * 0.05 }}
+                    layout
+                    className="flex items-center gap-4 p-4 bg-muted/30 border rounded-[1.25rem]"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+                    <Checkbox 
+                      id={`task-${task.id}`} 
+                      checked={task.completed}
+                      onCheckedChange={() => onToggle(task.id)}
+                      className="h-5 w-5 rounded-md"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <label 
+                        htmlFor={`task-${task.id}`}
+                        className="text-sm font-bold line-through truncate block"
+                      >
+                        {task.title}
+                      </label>
+                    </div>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => deleteTask(task.id)}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
-          </div>
+          </motion.div>
         )}
       </div>
     </div>

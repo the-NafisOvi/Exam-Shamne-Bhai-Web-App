@@ -20,9 +20,11 @@ export interface Course {
 
 export interface Exam {
   id: string;
-  subject: string;
+  courseName: string;
+  courseCode: string;
   date: string;
   time: string;
+  type?: string;
 }
 
 export interface AppData {
