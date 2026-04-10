@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,33 +15,44 @@ import {
 import { Plus, Trash2, CheckCircle2, Clock } from "lucide-react";
 import { Task } from "../types";
 import { motion, AnimatePresence } from "motion/react";
+import { db, collection, addDoc, deleteDoc, doc, OperationType, handleFirestoreError } from "../lib/firebase";
 
 interface TaskManagerProps {
   tasks: Task[];
-  onUpdate: (tasks: Task[]) => void;
+  uid: string;
   onToggle: (id: string) => void;
 }
 
-export default function TaskManager({ tasks, onUpdate, onToggle }: TaskManagerProps) {
+export default function TaskManager({ tasks, uid, onToggle }: TaskManagerProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newTask, setNewTask] = useState({ title: "", subject: "", deadline: "" });
 
-  const addTask = () => {
+  const addTask = async () => {
     if (!newTask.title) return;
-    const task: Task = {
-      id: Math.random().toString(36).substr(2, 9),
-      title: newTask.title,
-      subject: newTask.subject || "General",
-      deadline: newTask.deadline,
-      completed: false,
-    };
-    onUpdate([...tasks, task]);
-    setNewTask({ title: "", subject: "", deadline: "" });
-    setIsAddOpen(false);
+    try {
+      const taskData = {
+        uid: uid,
+        title: newTask.title,
+        subject: newTask.subject || "General",
+        deadline: newTask.deadline,
+        completed: false,
+        createdAt: new Date().toISOString()
+      };
+      // We'll let Firestore generate the ID
+      await addDoc(collection(db, "tasks"), taskData);
+      setNewTask({ title: "", subject: "", deadline: "" });
+      setIsAddOpen(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, "tasks");
+    }
   };
 
-  const deleteTask = (id: string) => {
-    onUpdate(tasks.filter(t => t.id !== id));
+  const deleteTask = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "tasks", id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `tasks/${id}`);
+    }
   };
 
   const pendingTasks = tasks.filter(t => !t.completed);

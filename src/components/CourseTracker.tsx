@@ -1,10 +1,16 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
+import { 
+  Card, 
+  CardContent, 
+  CardHeader, 
+  CardTitle, 
+  CardDescription 
+} from "@/components/ui/card";
 import { 
   Dialog, 
   DialogContent, 
@@ -13,97 +19,106 @@ import {
   DialogTrigger,
   DialogFooter
 } from "@/components/ui/dialog";
-import { Plus, Trash2, BookOpen, ChevronRight, ChevronDown } from "lucide-react";
+import { Plus, Trash2, BookOpen, CheckCircle2, Circle } from "lucide-react";
 import { Course, Topic } from "../types";
 import { motion, AnimatePresence } from "motion/react";
+import { db, collection, addDoc, deleteDoc, doc, setDoc, OperationType, handleFirestoreError } from "../lib/firebase";
 
 interface CourseTrackerProps {
   courses: Course[];
-  onUpdate: (courses: Course[]) => void;
+  uid: string;
 }
 
-export default function CourseTracker({ courses, onUpdate }: CourseTrackerProps) {
+export default function CourseTracker({ courses, uid }: CourseTrackerProps) {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newCourseName, setNewCourseName] = useState("");
-  const [expandedCourse, setExpandedCourse] = useState<string | null>(null);
+  const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
+  const [newTopicTitle, setNewTopicTitle] = useState("");
 
-  const addCourse = () => {
+  const addCourse = async () => {
     if (!newCourseName) return;
-    const course: Course = {
+    try {
+      await addDoc(collection(db, "courses"), {
+        uid: uid,
+        name: newCourseName,
+        topics: []
+      });
+      setNewCourseName("");
+      setIsAddOpen(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, "courses");
+    }
+  };
+
+  const deleteCourse = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "courses", id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `courses/${id}`);
+    }
+  };
+
+  const addTopic = async (courseId: string) => {
+    if (!newTopicTitle) return;
+    const course = courses.find(c => c.id === courseId);
+    if (!course) return;
+
+    const newTopic: Topic = {
       id: Math.random().toString(36).substr(2, 9),
-      name: newCourseName,
-      topics: [],
+      title: newTopicTitle,
+      completed: false
     };
-    onUpdate([...courses, course]);
-    setNewCourseName("");
-    setIsAddOpen(false);
+
+    try {
+      await setDoc(doc(db, "courses", courseId), {
+        ...course,
+        topics: [...course.topics, newTopic]
+      }, { merge: true });
+      setNewTopicTitle("");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `courses/${courseId}`);
+    }
   };
 
-  const deleteCourse = (id: string) => {
-    onUpdate(courses.filter(c => c.id !== id));
-  };
+  const toggleTopic = async (courseId: string, topicId: string) => {
+    const course = courses.find(c => c.id === courseId);
+    if (!course) return;
 
-  const addTopic = (courseId: string, title: string) => {
-    if (!title) return;
-    const updated = courses.map(c => {
-      if (c.id === courseId) {
-        return {
-          ...c,
-          topics: [...c.topics, { id: Math.random().toString(36).substr(2, 9), title, completed: false }]
-        };
-      }
-      return c;
-    });
-    onUpdate(updated);
-  };
+    const updatedTopics = course.topics.map(t => 
+      t.id === topicId ? { ...t, completed: !t.completed } : t
+    );
 
-  const toggleTopic = (courseId: string, topicId: string) => {
-    const updated = courses.map(c => {
-      if (c.id === courseId) {
-        return {
-          ...c,
-          topics: c.topics.map(t => t.id === topicId ? { ...t, completed: !t.completed } : t)
-        };
-      }
-      return c;
-    });
-    onUpdate(updated);
-  };
-
-  const deleteTopic = (courseId: string, topicId: string) => {
-    const updated = courses.map(c => {
-      if (c.id === courseId) {
-        return {
-          ...c,
-          topics: c.topics.filter(t => t.id !== topicId)
-        };
-      }
-      return c;
-    });
-    onUpdate(updated);
+    try {
+      await setDoc(doc(db, "courses", courseId), {
+        ...course,
+        topics: updatedTopics
+      }, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `courses/${courseId}`);
+    }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-bold font-bangla">Course Progress</h2>
+        <h2 className="text-xl font-bold font-bangla">Subject Tracker</h2>
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger asChild>
             <Button className="rounded-full gap-2 font-bangla">
-              <Plus className="h-4 w-4" /> Course Add Koro
+              <Plus className="h-4 w-4" /> Notun Subject Add Koro
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle className="font-bangla">Notun Course Add Koro</DialogTitle>
+              <DialogTitle className="font-bangla">Notun Subject Add Koro</DialogTitle>
             </DialogHeader>
             <div className="py-4">
-              <Label htmlFor="courseName" className="font-bangla">Course Name (e.g., CSE101)</Label>
+              <Label htmlFor="courseName" className="font-bangla">Subject er Naam</Label>
               <Input 
                 id="courseName" 
                 value={newCourseName} 
                 onChange={(e) => setNewCourseName(e.target.value)}
-                placeholder="Math123, Physics..."
+                placeholder="e.g., Physics, Math"
                 className="mt-2"
               />
             </div>
@@ -119,99 +134,76 @@ export default function CourseTracker({ courses, onUpdate }: CourseTrackerProps)
           const completedCount = course.topics.filter(t => t.completed).length;
           const totalCount = course.topics.length;
           const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-          const isExpanded = expandedCourse === course.id;
 
           return (
-            <Card key={course.id} className="overflow-hidden border-primary/10">
-              <div 
-                className="p-4 cursor-pointer hover:bg-muted/30 transition-colors"
-                onClick={() => setExpandedCourse(isExpanded ? null : course.id)}
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-primary/10 p-2 rounded-lg text-primary">
-                      <BookOpen className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-lg">{course.name}</h3>
-                      <p className="text-xs text-muted-foreground font-bangla">Course Progress: {progress}%</p>
-                    </div>
+            <Card key={course.id} className="overflow-hidden border-primary/10 hover:border-primary/30 transition-colors">
+              <CardHeader className="pb-3">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <CardTitle className="text-lg font-bold">{course.name}</CardTitle>
+                    <CardDescription className="font-bangla">{completedCount}/{totalCount} topics sesh</CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteCourse(course.id);
-                      }}
-                      className="text-destructive h-8 w-8"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                    {isExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-                  </div>
-                </div>
-                <Progress value={progress} className="h-1.5" />
-              </div>
-
-              <AnimatePresence>
-                {isExpanded && (
-                  <motion.div 
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="border-t bg-muted/10 overflow-hidden"
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => deleteCourse(course.id)}
+                    className="text-muted-foreground hover:text-destructive"
                   >
-                    <div className="p-4 space-y-4">
-                      <div className="flex gap-2">
-                        <Input 
-                          placeholder="Notun topic add koro..." 
-                          className="h-9 text-sm"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              addTopic(course.id, e.currentTarget.value);
-                              e.currentTarget.value = "";
-                            }
-                          }}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        {course.topics.map(topic => (
-                          <div key={topic.id} className="flex items-center justify-between group">
-                            <div className="flex items-center gap-3">
-                              <Checkbox 
-                                checked={topic.completed}
-                                onCheckedChange={() => toggleTopic(course.id, topic.id)}
-                              />
-                              <span className={`text-sm ${topic.completed ? 'line-through text-muted-foreground' : ''}`}>
-                                {topic.title}
-                              </span>
-                            </div>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={() => deleteTopic(course.id, topic.id)}
-                              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        ))}
-                        {course.topics.length === 0 && (
-                          <p className="text-xs text-center text-muted-foreground py-2 font-bangla">Kono topic add koro nai bhai. 😐</p>
-                        )}
-                      </div>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                <Progress value={progress} className="h-1.5 mt-2" />
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  {course.topics.map(topic => (
+                    <div 
+                      key={topic.id} 
+                      className="flex items-center gap-2 p-2 hover:bg-muted/50 rounded-lg transition-colors group"
+                    >
+                      <Checkbox 
+                        id={`topic-${topic.id}`}
+                        checked={topic.completed}
+                        onCheckedChange={() => toggleTopic(course.id, topic.id)}
+                      />
+                      <label 
+                        htmlFor={`topic-${topic.id}`}
+                        className={`text-sm flex-1 ${topic.completed ? 'line-through text-muted-foreground' : ''}`}
+                      >
+                        {topic.title}
+                      </label>
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  ))}
+                </div>
+                
+                <div className="flex gap-2 pt-2">
+                  <Input 
+                    placeholder="Topic add koro..." 
+                    value={activeCourseId === course.id ? newTopicTitle : ""}
+                    onChange={(e) => {
+                      setActiveCourseId(course.id);
+                      setNewTopicTitle(e.target.value);
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && addTopic(course.id)}
+                    className="h-8 text-xs"
+                  />
+                  <Button 
+                    size="sm" 
+                    variant="secondary" 
+                    className="h-8 px-2"
+                    onClick={() => addTopic(course.id)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
             </Card>
           );
         })}
         {courses.length === 0 && (
-          <div className="text-center py-12 bg-muted/20 rounded-3xl border-2 border-dashed">
-            <p className="text-muted-foreground font-bangla">Course add koro bhai, pora shuru koro! 📚</p>
+          <div className="col-span-full p-12 text-center bg-muted/20 rounded-3xl border-2 border-dashed">
+            <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4 opacity-20" />
+            <p className="text-muted-foreground font-bangla">Kono subject add koro nai bhai. <br/> Pora-lekha ki bad dila? 🤨</p>
           </div>
         )}
       </div>
